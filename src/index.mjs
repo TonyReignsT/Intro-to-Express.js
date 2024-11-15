@@ -4,6 +4,31 @@ const app = express()
 const PORT = process.env.PORT || 3000;
 app.use(express.json())
 
+//Middleware
+const loggingMiddleware = (req, res, next) => {
+    console.log(`${req.method} - ${req.url}`);
+    next();  //function called when done with the middleware
+}
+
+//Initialize repetitve code
+// Middleware
+const resolveIndexByUserId = (req, res, next) => {
+    const { params: { id } } = req;
+    const parsedId = parseInt(id);
+    
+    if (isNaN(parsedId)) return res.sendStatus(400);
+    
+    const findUserIndex = users.findIndex((user) => user.id === parsedId);
+    
+    if (findUserIndex === -1) return res.sendStatus(404); //-1 means User not found
+    req.findUserIndex = findUserIndex;
+    next();
+}
+
+
+//Registering the middleware globally to be accessed by the request handlers
+// app.use(loggingMiddleware);
+//To log the middleware to specific req handler, you pass the middleware function as a parameter
 
 const users = [
     {id: 1, username: "tony", displayName: "Tony"},
@@ -15,7 +40,16 @@ const users = [
     {id: 7, username: "ciftler", displayName: "Ciftler"},
     {id: 8, username: "adeola", displayName: "Adeola"}
 ]
-app.get('/', (req, res)=> {
+
+//Request Handlers
+
+// app.get('/', loggingMiddleware, (req, res)=> {}) or to have more control use the one below
+// app.get('/', (req, res, next) => {
+//     console.log("Base URL");
+//     next();
+// }, 
+
+app.get('/',(req, res)=> {
     res.status(201).send({msg:"Hello World!!"});
 })
 
@@ -45,7 +79,7 @@ app.get('/api/users/:id', (req, res)=> {
 });
 
 //Query Params
-app.get('api/users', (req, res)=> {
+app.get('/api/users', (req, res)=> {
     console.log(req.query);
     const {query: {filter, value}} = req;
 
@@ -66,37 +100,32 @@ app.post('/api/users', (req, res)=> {
     return res.status(201).send(newUser);
 })
 
-//Put Request
-app.put('/api/users/:id', (req, res)=> {
-    const {body, params: {id}} = req;
-    const parsedId = parseInt(id);
-    if (isNaN(parsedId)) return res.sendStatus(400);
-    const findUserindex = users.findIndex((user) => user.id === parsedId);
+//Get Request
+app.get('/api/users/:id', resolveIndexByUserId, (req, res) => {
+    const {findUserIndex} = req;
+    const findUser = users[findUserIndex];
+    if (!findUser) return res.sendStatus(404);
+    return res.send(findUser);
+})
 
-    if (findUserindex === -1) return res.sendStatus(404);   //-1 means if the user is not found by id
-    users[findUserindex] = {id: parsedId, ...body};  //updating the entire resource
+//Put Request
+app.put('/api/users/:id', resolveIndexByUserId, (req, res) => {
+    const { body, findUserIndex } = req;
+    users[findUserIndex] = { id: users[findUserIndex].id, ...body }; // Update the user
     return res.sendStatus(200);
 });
 
 //Patch Request
-app.patch('/api/users/:id', (req, res)=> {
-    const {body, params: {id}} = req;
-    const parsedId = parseInt(id);
-    if (isNaN(parsedId)) return res.sendStatus(400);
-    const findUserindex = users.findIndex((user) => user.id === parsedId);
-    if (findUserindex === -1) return res.sendStatus(404);   //-1 means if the user is not found by id
-    users[findUserindex] = {...users[findUserindex], ...body}
+app.patch('/api/users/:id', resolveIndexByUserId, (req, res)=> {
+    const {body, findUserIndex} = req;
+    users[findUserIndex] = {...users[findUserIndex], ...body}
     return res.sendStatus(200);
 })
 
 //Delete Request
-app.delete("/api/users/:id", (req, res)=> {
-    const {params : {id}} = req;
-    const parsedId = parseInt(id);
-    if (isNaN(parsedId)) return res.sendStatus(400);
-    const findUserIndex = users.findIndex((user)=> user.id === parsedId);
-    if (findUserIndex === -1) return res.sendStatus(404);
-    users.splice(findUserIndex, 1);
+app.delete("/api/users/:id", resolveIndexByUserId, (req, res)=> {
+    const {findUserIndex} = req;
+    users.splice(findUserIndex, 1); //1 - specifies removing one element
     return res.sendStatus(200);
 })
 
