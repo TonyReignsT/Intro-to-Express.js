@@ -1,4 +1,5 @@
 import express from 'express';
+import {query, validationResult, body, matchedData} from 'express-validator';
 
 const app = express()
 const PORT = process.env.PORT || 3000;
@@ -79,8 +80,10 @@ app.get('/api/users/:id', (req, res)=> {
 });
 
 //Query Params
-app.get('/api/users', (req, res)=> {
-    console.log(req.query);
+//Query parameters are always passed as strings
+app.get('/api/userss', query('filter').isString().notEmpty(), (req, res)=> {   //query('filter').isString().notEmpty().withMessage()   -- used to validate query parameters
+    const result = validationResult(req);
+    console.log(result); 
     const {query: {filter, value}} = req;
 
     //Check if filter and value are provided
@@ -92,10 +95,20 @@ app.get('/api/users', (req, res)=> {
 })
 
 //Post Request
-app.post('/api/users', (req, res)=> {
-    console.log(req.body);
-    const {body} = req;
-    const newUser = {id: users[users.length -1].id + 1, ...body};
+app.post('/api/users', [body('username').notEmpty().withMessage('username cannot be empty').isLength({min:5, max:32}).withMessage('Username must be atleast 5 characters with a max of 32 characters').isString().withMessage('username must be a string!')], (req, res)=> {  //Performing validation request bodies
+   //console.log(req.body);
+   const result = validationResult(req);
+   console.log(result);
+
+   //To check if the request is empty or not
+    if (!result.isEmpty())
+        return res.status(400).send({errors: result.array()})  //incase of an error it returns the error as an array
+    //MatchedData
+    const data = matchedData(req); //Grabs all the data that have been validated
+    console.log(data); //use data object instead of request body below
+    //const {body} = req;
+   // const newUser = {id: users[users.length -1].id + 1, ...body};
+    const newUser = {id: users[users.length -1].id + 1, ...data};
     users.push(newUser);
     return res.status(201).send(newUser);
 })
